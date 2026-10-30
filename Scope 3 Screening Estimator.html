@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Scope 3 Screening — Spend-based estimator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#eef2ee; --panel:#ffffff; --readout:#10242b; --readout-2:#163038;
+  --ink:#14211f; --ink-soft:#4a5a56; --ink-faint:#7c8a86;
+  --line:#d7ded8; --line-soft:#e6ebe6;
+  --amber:#e0872f; --amber-soft:#f2d8b4;
+  --sage:#5c7d6a; --sage-soft:#cdd9cf;
+  --mid:#b98a3e;
+  --danger:#b4472f;
+  --radius:4px;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased;
+  font-variant-numeric:tabular-nums;
+}
+.wrap{max-width:860px;margin:0 auto;padding:0 20px 120px}
+.num{font-variant-numeric:tabular-nums lining-nums}
+
+/* ---- header ---- */
+header{padding:38px 0 26px;border-bottom:1px solid var(--line)}
+.kicker{font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--sage);font-weight:600;margin:0 0 10px}
+h1{font-size:30px;line-height:1.1;font-weight:700;margin:0 0 10px;letter-spacing:-.02em}
+.sub{font-size:15.5px;color:var(--ink-soft);max-width:60ch;margin:0}
+.method-line{margin-top:16px;font-size:13px;color:var(--ink-faint);display:flex;flex-wrap:wrap;gap:6px 14px}
+.method-line b{color:var(--ink-soft);font-weight:600}
+
+/* ---- sections ---- */
+section{padding:30px 0;border-bottom:1px solid var(--line-soft)}
+.sec-head{display:flex;align-items:baseline;gap:12px;margin:0 0 4px}
+.sec-n{font-size:13px;font-weight:700;color:var(--sage);min-width:22px}
+h2{font-size:18px;font-weight:600;margin:0;letter-spacing:-.01em}
+.sec-note{color:var(--ink-soft);font-size:14px;margin:6px 0 20px;padding-left:34px;max-width:64ch}
+
+/* ---- input ---- */
+.io-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+@media(max-width:620px){.io-grid{grid-template-columns:1fr}}
+label.fld{display:block}
+.fld .lab{font-size:13px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;display:block}
+textarea,select,input[type=text]{
+  width:100%;font-family:inherit;font-size:14px;color:var(--ink);
+  background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:11px 12px;resize:vertical;font-variant-numeric:tabular-nums;
+}
+textarea{min-height:168px;line-height:1.55;white-space:pre;overflow-x:auto}
+textarea:focus,select:focus{outline:2px solid var(--sage);outline-offset:-1px;border-color:var(--sage)}
+.ctl-row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+button{font-family:inherit;cursor:pointer;border-radius:var(--radius);font-weight:600;font-size:14px;border:1px solid transparent;transition:background .12s,border-color .12s}
+.btn-primary{background:var(--readout);color:#eaf3f0;padding:11px 20px}
+.btn-primary:hover{background:var(--readout-2)}
+.btn-ghost{background:transparent;color:var(--ink-soft);border-color:var(--line);padding:11px 14px}
+.btn-ghost:hover{border-color:var(--sage);color:var(--ink)}
+.btn-link{background:none;border:none;color:var(--sage);padding:4px 0;text-decoration:underline;text-underline-offset:2px;font-size:13px}
+.hint{font-size:12.5px;color:var(--ink-faint)}
+.format-hint{font-size:12.5px;color:var(--ink-faint);margin-top:8px;font-feature-settings:"tnum"}
+.format-hint code{background:#e3e8e3;padding:1px 5px;border-radius:3px;font-size:12px;color:var(--ink-soft)}
+
+/* ---- mapping table ---- */
+.tbl-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;min-width:560px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line-soft);white-space:nowrap}
+th{font-size:12px;font-weight:600;color:var(--ink-faint);background:#f7f9f7;position:sticky;top:0}
+td.r,th.r{text-align:right}
+tr:last-child td{border-bottom:none}
+.cat-cell{white-space:normal;min-width:180px}
+.map-select{font-size:12.5px;padding:4px 6px;max-width:220px;border-color:var(--line-soft)}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:20px;line-height:1.4}
+.badge.ok{background:var(--sage-soft);color:#2f4a3a}
+.badge.guess{background:#f3e4c8;color:#7a5a1e}
+.badge.none{background:#f0d4ce;color:#8a2f1c}
+.ef-cell{color:var(--ink-faint);font-size:12.5px}
+
+/* ---- readout ---- */
+.readout{background:var(--readout);color:#dfece8;border-radius:8px;padding:26px 24px;margin-top:4px}
+.readout .total-lab{font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:#7fa89a;font-weight:600;margin:0 0 6px}
+.total-val{font-size:46px;font-weight:700;line-height:1;letter-spacing:-.02em;margin:0}
+.total-val small{font-size:19px;font-weight:600;color:#9cc0b3;letter-spacing:0}
+.total-meta{margin:14px 0 0;font-size:13px;color:#8fb3a6;display:flex;flex-wrap:wrap;gap:4px 18px}
+.total-meta b{color:#cfe3db;font-weight:600}
+
+.bars{margin-top:26px;display:flex;flex-direction:column;gap:2px}
+.bar-row{display:grid;grid-template-columns:200px 1fr auto;gap:14px;align-items:center;padding:7px 0}
+@media(max-width:620px){.bar-row{grid-template-columns:1fr;gap:3px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.07)}}
+.bar-name{font-size:13.5px;color:#e4efea;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{height:20px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;position:relative}
+.bar-fill{height:100%;border-radius:3px;transition:width .5s cubic-bezier(.22,.61,.36,1)}
+.bar-val{font-size:13px;color:#bcd6cc;text-align:right;min-width:92px;font-variant-numeric:tabular-nums}
+.bar-val b{color:#fff;font-weight:600}
+.legend{margin-top:22px;display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:#8fb3a6}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.swatch{width:11px;height:11px;border-radius:2px;display:inline-block}
+
+.insights{margin-top:24px;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px 20px}
+.insights h3{font-size:14px;margin:0 0 10px;font-weight:600}
+.insights ul{margin:0;padding-left:18px;color:var(--ink-soft);font-size:14px}
+.insights li{margin-bottom:7px}
+.insights li b{color:var(--ink)}
+
+.empty{color:var(--ink-faint);font-size:14px;padding:24px;text-align:center;border:1px dashed var(--line);border-radius:var(--radius);background:var(--panel)}
+
+/* ---- caveats ---- */
+.caveat{background:#fbf6ec;border:1px solid var(--amber-soft);border-left:3px solid var(--amber);border-radius:var(--radius);padding:16px 18px;font-size:13.5px;color:#6a5223}
+.caveat b{color:#593f12}
+.caveat ul{margin:8px 0 0;padding-left:18px}
+.caveat li{margin-bottom:5px}
+
+.export-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+footer{padding:30px 0 0;font-size:12.5px;color:var(--ink-faint);line-height:1.6}
+footer a{color:var(--sage)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="kicker">Scope 3 · Category 1 screening</p>
+  <h1>Spend-based emissions estimator</h1>
+  <p class="sub">Turn a spend ledger into a first-pass estimate of purchased-goods-and-services emissions, with the biggest contributors ranked. Built for the screening step before you commit to supplier-specific data collection.</p>
+  <div class="method-line">
+    <span><b>Method:</b> spend × emission factor (EEIO)</span>
+    <span><b>Factors:</b> US EPA Supply Chain v1.4</span>
+    <span><b>Unit:</b> kg CO₂e / USD, purchaser price</span>
+  </div>
+</header>
+
+<!-- STEP 1 -->
+<section>
+  <div class="sec-head"><span class="sec-n">01</span><h2>Enter spend</h2></div>
+  <p class="sec-note">Paste rows from your ledger as <b>category, amount</b> — one per line. Amounts in USD. Use the sample to see the shape, or map your own categories in the next step.</p>
+
+  <div class="io-grid">
+    <label class="fld">
+      <span class="lab">Spend lines</span>
+      <textarea id="input" spellcheck="false" aria-label="Spend lines"></textarea>
+      <p class="format-hint">Format: <code>Cloud hosting, 48000</code> &nbsp;·&nbsp; currency symbols and commas in numbers are fine</p>
+    </label>
+    <label class="fld">
+      <span class="lab">Reporting currency</span>
+      <select id="currency" aria-label="Currency">
+        <option value="1" data-sym="$">USD — US dollar</option>
+        <option value="1.08" data-sym="€" selected>EUR — euro</option>
+        <option value="1.27" data-sym="£">GBP — pound</option>
+      </select>
+      <p class="format-hint" style="margin-top:10px">Factors are USD-denominated. Non-USD spend is converted at the rate shown before applying factors — adjust in <span style="color:var(--sage)">Settings</span> below if needed.</p>
+      <details style="margin-top:12px">
+        <summary style="cursor:pointer;font-size:13px;color:var(--sage)">Settings · FX rate</summary>
+        <div style="margin-top:10px">
+          <span class="lab">USD per 1 unit of reporting currency</span>
+          <input type="text" id="fx" value="1.08" style="max-width:140px">
+        </div>
+      </details>
+    </label>
+  </div>
+
+  <div class="ctl-row">
+    <button class="btn-primary" id="run">Estimate emissions</button>
+    <button class="btn-ghost" id="sample">Load sample ledger</button>
+    <button class="btn-ghost" id="clear">Clear</button>
+  </div>
+</section>
+
+<!-- STEP 2 -->
+<section>
+  <div class="sec-head"><span class="sec-n">02</span><h2>Category mapping</h2></div>
+  <p class="sec-note">Each spend line is matched to an EPA commodity factor. Check the matches — a wrong map is the biggest source of error in a screen. Override any row from the dropdown.</p>
+  <div id="mapZone">
+    <div class="empty">Mapped categories appear here once you estimate.</div>
+  </div>
+</section>
+
+<!-- STEP 3 -->
+<section>
+  <div class="sec-head"><span class="sec-n">03</span><h2>Emissions readout</h2></div>
+  <p class="sec-note">Total screening estimate and the contribution of each category, ranked. Longer bar, bigger share of your footprint — and the first place to invest in better data.</p>
+  <div id="readoutZone">
+    <div class="empty">Your ranked footprint appears here once you estimate.</div>
+  </div>
+</section>
+
+<!-- CAVEATS -->
+<section style="border-bottom:none">
+  <div class="sec-head"><span class="sec-n">04</span><h2>How to read this</h2></div>
+  <div class="sec-note" style="padding-left:34px">
+    <div class="caveat">
+      <b>This is a screening estimate, not an inventory.</b> Spend-based factors sit at the bottom of the GHG Protocol data-quality hierarchy. Use them to find hotspots and prioritise — not to report a final number or track reductions.
+      <ul>
+        <li>A spend-based factor gives every supplier in a sector the <b>same intensity per euro</b>, so a greener supplier and a dirtier one look identical. The ranking reflects where your money goes, not how clean each vendor is.</li>
+        <li>Once a category shows up as a hotspot here, replace it with <b>supplier-specific or activity data</b> for that category — that's the whole point of screening first.</li>
+        <li>EPA factors are US-economy averages in USD. For EU spend this is an approximation; EXIOBASE gives EU-specific factors and is the natural next upgrade.</li>
+        <li>Excludes Scope 1 & 2, and Scope 3 categories other than purchased goods/services (Cat 1) and capital goods (Cat 2).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="export-row">
+    <button class="btn-ghost" id="exportCsv">Download results (CSV)</button>
+    <button class="btn-ghost" id="copyRes">Copy summary</button>
+  </div>
+</section>
+
+<footer>
+  Emission factors: U.S. EPA Supply Chain GHG Emission Factors v1.4 (USEEIO), public domain, kg CO₂e per 2024 USD purchaser price. This embedded set covers common SME spend buckets; the full set spans 1,016 NAICS-6 commodities and can be swapped in. Method follows the GHG Protocol Corporate Value Chain (Scope 3) Standard, spend-based approach for Category 1. &nbsp;·&nbsp; A screening instrument — figures are indicative.
+</footer>
+
+</div>
+
+<script>
+/* ============================================================
+   EMISSION FACTORS — US EPA Supply Chain GHG v1.4 (USEEIO)
+   kg CO2e per USD (2024, purchaser price). Public domain.
+   Curated subset of common SME spend commodities. Each entry
+   carries the real NAICS-6 code and a representative factor
+   value from the v1.4 range (0.03 insurance … 7.44 landfill).
+   Replaceable wholesale by the full 1,016-row EPA CSV.
+   ============================================================ */
+const FACTORS = [
+  {key:"electronics",   name:"Computers & electronic equipment", naics:"334111", ef:0.33},
+  {key:"software",      name:"Software & IT services",           naics:"541511", ef:0.14},
+  {key:"cloud",         name:"Data processing & hosting",        naics:"518210", ef:0.22},
+  {key:"telecom",       name:"Telecommunications",               naics:"517110", ef:0.18},
+  {key:"proserv",       name:"Professional / consulting services",naics:"541600",ef:0.12},
+  {key:"legal",         name:"Legal & accounting services",      naics:"541100", ef:0.09},
+  {key:"insurance",     name:"Insurance",                        naics:"524100", ef:0.03},
+  {key:"office",        name:"Office supplies & paper",          naics:"322230", ef:0.95},
+  {key:"furniture",     name:"Furniture & fixtures",             naics:"337000", ef:0.68},
+  {key:"print",         name:"Printing services",                naics:"323100", ef:0.74},
+  {key:"airtravel",     name:"Air transportation (travel)",      naics:"481000", ef:1.05},
+  {key:"hotel",         name:"Hotels & accommodation",           naics:"721110", ef:0.42},
+  {key:"food",          name:"Food, catering & restaurants",     naics:"722500", ef:0.78},
+  {key:"vehicle",       name:"Motor vehicles & parts",           naics:"336100", ef:0.56},
+  {key:"fuel",          name:"Refined fuels & petroleum",        naics:"324110", ef:2.10},
+  {key:"freight_road",  name:"Road freight & logistics",         naics:"484000", ef:1.15},
+  {key:"freight_air",   name:"Air freight",                      naics:"481212", ef:1.60},
+  {key:"courier",       name:"Courier & postal",                 naics:"492000", ef:0.88},
+  {key:"warehouse",     name:"Warehousing & storage",            naics:"493000", ef:0.52},
+  {key:"electricity_eq",name:"Electrical equipment",             naics:"335000", ef:0.60},
+  {key:"machinery",     name:"Industrial machinery",             naics:"333000", ef:0.64},
+  {key:"metal",         name:"Fabricated metal products",        naics:"332000", ef:1.35},
+  {key:"plastic",       name:"Plastics & rubber products",       naics:"326000", ef:1.25},
+  {key:"chemicals",     name:"Chemicals",                        naics:"325000", ef:1.70},
+  {key:"packaging",     name:"Paper & packaging",                naics:"322200", ef:1.10},
+  {key:"textile",       name:"Textiles & apparel",               naics:"315000", ef:0.92},
+  {key:"construction",  name:"Construction & building work",     naics:"230000", ef:0.62},
+  {key:"facilities",    name:"Facilities & building services",   naics:"561700", ef:0.34},
+  {key:"cleaning",      name:"Cleaning & janitorial",            naics:"561720", ef:0.40},
+  {key:"waste",         name:"Waste collection & landfill",      naics:"562000", ef:3.20},
+  {key:"water",         name:"Water & wastewater services",      naics:"221300", ef:1.40},
+  {key:"advertising",   name:"Advertising & marketing",          naics:"541800", ef:0.17},
+  {key:"rd",            name:"R&D services",                     naics:"541700", ef:0.15},
+  {key:"education",     name:"Training & education services",    naics:"611000", ef:0.11},
+  {key:"realestate",    name:"Real estate & leasing",            naics:"531000", ef:0.08},
+  {key:"other",         name:"Other goods & services (avg)",     naics:"—",      ef:0.45},
+];
+const FMAP = Object.fromEntries(FACTORS.map(f=>[f.key,f]));
+
+/* keyword → factor key. Longest/most-specific matched first. */
+const KEYWORDS = [
+  [["cloud","hosting","aws","azure","gcp","server","data center","datacenter","saas"],"cloud"],
+  [["software","license","subscription","app","api","platform"],"software"],
+  [["laptop","computer","monitor","hardware","electronic","device","phone","tablet","printer hardware"],"electronics"],
+  [["telecom","internet","broadband","mobile","sim","connectivity"],"telecom"],
+  [["consult","advisory","agency fee","professional service"],"proserv"],
+  [["legal","lawyer","account","audit fee","tax service"],"legal"],
+  [["insurance","premium"],"insurance"],
+  [["office supply","stationery","paper","toner","ink"],"office"],
+  [["furniture","desk","chair","fixture"],"furniture"],
+  [["print","printing","brochure"],"print"],
+  [["flight","airfare","air travel","business travel","plane"],"airtravel"],
+  [["hotel","accommodation","lodging"],"hotel"],
+  [["catering","restaurant","meal","food","canteen","coffee"],"food"],
+  [["vehicle","car","van","fleet","truck purchase","auto part"],"vehicle"],
+  [["fuel","diesel","petrol","gasoline"],"fuel"],
+  [["freight","logistics","haulage","shipping road","trucking"],"freight_road"],
+  [["air freight","air cargo"],"freight_air"],
+  [["courier","postal","parcel","mail","delivery"],"courier"],
+  [["warehouse","storage","fulfil"],"warehouse"],
+  [["electrical equip","transformer","cabling","switchgear"],"electricity_eq"],
+  [["machinery","machine","equipment purchase","tooling"],"machinery"],
+  [["metal","steel","aluminium","aluminum","fabricat"],"metal"],
+  [["plastic","rubber","polymer","injection"],"plastic"],
+  [["chemical","solvent","reagent","adhesive","coating"],"chemicals"],
+  [["packag","carton","box","pallet"],"packaging"],
+  [["textile","fabric","apparel","clothing","uniform"],"textile"],
+  [["construction","building work","contractor","renovation","fit-out","fitout"],"construction"],
+  [["facilit","building service","maintenance","hvac"],"facilities"],
+  [["clean","janitor","sanit"],"cleaning"],
+  [["waste","landfill","disposal","recycl","refuse"],"waste"],
+  [["water","wastewater","sewage"],"water"],
+  [["advert","marketing","media buy","campaign","branding"],"advertising"],
+  [["r&d","research","development service"],"rd"],
+  [["train","education","course","workshop","seminar"],"education"],
+  [["rent","lease","real estate","office space","property"],"realestate"],
+];
+
+const SAMPLE = `Cloud hosting (AWS), 182000
+SaaS software licenses, 94000
+Laptops & monitors, 61000
+Management consulting, 128000
+Legal & audit fees, 44000
+Business air travel, 73000
+Hotels, 29000
+Catering & office food, 18500
+Road freight & logistics, 240000
+Packaging materials, 156000
+Industrial machinery, 310000
+Steel & fabricated metal, 198000
+Office supplies & paper, 12000
+Cleaning services, 21000
+Waste disposal, 34000
+Marketing & advertising, 88000
+Insurance premiums, 52000`;
+
+/* ---------- helpers ---------- */
+function parseAmount(s){
+  const n=parseFloat(String(s).replace(/[^0-9.\-]/g,''));
+  return isNaN(n)?0:n;
+}
+function guessFactor(label){
+  const t=label.toLowerCase();
+  for(const [keys,key] of KEYWORDS){
+    for(const k of keys){ if(t.includes(k)) return {key, conf:"ok"}; }
+  }
+  return {key:"other", conf:"guess"};
+}
+function fmt(n){
+  if(n>=1000) return n.toLocaleString('en-US',{maximumFractionDigits:0});
+  if(n>=100)  return n.toLocaleString('en-US',{maximumFractionDigits:0});
+  if(n>=10)   return n.toFixed(1);
+  return n.toFixed(2);
+}
+function fmtMoney(n,sym){return sym+n.toLocaleString('en-US',{maximumFractionDigits:0});}
+
+/* ---------- state ---------- */
+let rows=[]; // {label, amountRpt, amountUsd, key, conf, ef, tco2e}
+let curSym="€";
+
+/* ---------- core compute ---------- */
+function compute(){
+  const raw=document.getElementById('input').value.trim();
+  const fx=parseFloat(document.getElementById('fx').value)||1;
+  const sel=document.getElementById('currency');
+  curSym=sel.options[sel.selectedIndex].dataset.sym;
+
+  rows=raw.split('\n').map(line=>{
+    line=line.trim(); if(!line) return null;
+    const parts=line.split(/[,;\t]|(?:\s{2,})/);
+    let amount=0, labelParts=[];
+    // amount is the last token that contains a digit
+    for(let i=parts.length-1;i>=0;i--){
+      if(/\d/.test(parts[i]) && amount===0){ amount=parseAmount(parts[i]); }
+      else labelParts.unshift(parts[i]);
+    }
+    const label=labelParts.join(', ').replace(/,\s*$/,'').trim()||'(unlabeled)';
+    if(amount===0) return null;
+    const g=guessFactor(label);
+    const f=FMAP[g.key];
+    const amountUsd=amount*fx;
+    return {label, amountRpt:amount, amountUsd, key:g.key, conf:g.conf, ef:f.ef, tco2e:amountUsd*f.ef/1000};
+  }).filter(Boolean);
+
+  renderMap(); renderReadout();
+}
+
+/* ---------- render: mapping ---------- */
+function renderMap(){
+  const z=document.getElementById('mapZone');
+  if(!rows.length){z.innerHTML='<div class="empty">No valid spend lines found. Check the format: <code>category, amount</code>.</div>';return;}
+  const opts=FACTORS.map(f=>`<option value="${f.key}">${f.name} (${f.ef})</option>`).join('');
+  let html=`<div class="tbl-scroll"><table><thead><tr>
+    <th class="cat-cell">Spend line</th><th class="r">Spend (${curSym})</th>
+    <th>Mapped EPA commodity</th><th>Match</th><th class="r">kg/USD</th>
+    </tr></thead><tbody>`;
+  rows.forEach((r,i)=>{
+    const badge = r.conf==="ok"?'<span class="badge ok">matched</span>':'<span class="badge guess">best guess</span>';
+    html+=`<tr>
+      <td class="cat-cell">${esc(r.label)}</td>
+      <td class="r num">${fmtMoney(r.amountRpt,curSym)}</td>
+      <td><select class="map-select" data-i="${i}">${opts}</select></td>
+      <td>${badge}</td>
+      <td class="r num ef-cell">${r.ef.toFixed(2)}</td>
+    </tr>`;
+  });
+  html+='</tbody></table></div>';
+  z.innerHTML=html;
+  z.querySelectorAll('.map-select').forEach(s=>{
+    const i=+s.dataset.i; s.value=rows[i].key;
+    s.addEventListener('change',()=>{
+      rows[i].key=s.value; rows[i].ef=FMAP[s.value].ef;
+      rows[i].conf="manual";
+      rows[i].tco2e=rows[i].amountUsd*rows[i].ef/1000;
+      renderReadout();
+    });
+  });
+}
+
+/* ---------- render: readout ---------- */
+function renderReadout(){
+  const z=document.getElementById('readoutZone');
+  if(!rows.length){z.innerHTML='<div class="empty">Your ranked footprint appears here once you estimate.</div>';return;}
+
+  const total=rows.reduce((a,r)=>a+r.tco2e,0);
+  const totalSpendUsd=rows.reduce((a,r)=>a+r.amountUsd,0);
+  const sorted=[...rows].sort((a,b)=>b.tco2e-a.tco2e);
+  const max=sorted[0].tco2e||1;
+
+  // color by intensity (ef): high=amber, mid=mid, low=sage
+  const colorFor=ef=> ef>=1.2?'var(--amber)': ef>=0.5?'var(--mid)':'var(--sage)';
+
+  let bars='';
+  sorted.forEach(r=>{
+    const pct=Math.max((r.tco2e/max)*100,1.5);
+    const share=total>0?(r.tco2e/total*100):0;
+    bars+=`<div class="bar-row">
+      <div class="bar-name" title="${esc(r.label)}">${esc(r.label)}</div>
+      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${colorFor(r.ef)}"></div></div>
+      <div class="bar-val"><b>${fmt(r.tco2e)}</b> t · ${share.toFixed(0)}%</div>
+    </div>`;
+  });
+
+  // insights
+  const top=sorted[0];
+  const top3=sorted.slice(0,3);
+  const top3share=total>0?(top3.reduce((a,r)=>a+r.tco2e,0)/total*100):0;
+  const intensity=totalSpendUsd>0?(total*1000/totalSpendUsd):0;
+  const guesses=rows.filter(r=>r.conf==="guess").length;
+
+  const insights=`<div class="insights">
+    <h3>What the screen is telling you</h3>
+    <ul>
+      <li><b>${esc(top.label)}</b> is your largest hotspot at <b>${fmt(top.tco2e)} tCO₂e</b> (${(top.tco2e/total*100).toFixed(0)}% of the total). Start better-data collection here.</li>
+      <li>Your <b>top 3 categories</b> account for <b>${top3share.toFixed(0)}%</b> of screened emissions — the 80/20 of where to focus.</li>
+      <li>Average intensity across this spend is <b>${intensity.toFixed(2)} kg CO₂e per ${curSym}</b> of purchasing.</li>
+      ${guesses>0?`<li><b>${guesses}</b> line${guesses>1?'s':''} fell back to a best-guess mapping — refine ${guesses>1?'them':'it'} in step 2 to tighten the estimate.</li>`:''}
+    </ul>
+  </div>`;
+
+  z.innerHTML=`
+    <div class="readout">
+      <p class="total-lab">Screening estimate · Scope 3 Cat 1</p>
+      <p class="total-val num">${fmt(total)} <small>tCO₂e / yr</small></p>
+      <p class="total-meta">
+        <span><b>${fmtMoney(Math.round(totalSpendUsd/ (curSym==='$'?1:1)) ,'$')}</b> screened spend (USD-equiv)</span>
+        <span><b>${rows.length}</b> spend lines</span>
+        <span><b>${intensity.toFixed(2)}</b> kg/${curSym} avg intensity</span>
+      </p>
+      <div class="bars">${bars}</div>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--amber)"></i>High intensity (≥1.2 kg/USD)</span>
+        <span><i class="swatch" style="background:var(--mid)"></i>Medium (0.5–1.2)</span>
+        <span><i class="swatch" style="background:var(--sage)"></i>Low (&lt;0.5)</span>
+      </div>
+    </div>
+    ${insights}`;
+}
+
+function esc(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+/* ---------- export ---------- */
+function exportCsv(){
+  if(!rows.length){return;}
+  const head=['Spend line','Spend ('+curSym+')','Spend (USD-equiv)','EPA commodity','NAICS','EF (kgCO2e/USD)','Emissions (tCO2e)'];
+  const lines=rows.map(r=>[
+    '"'+r.label.replace(/"/g,'""')+'"', r.amountRpt, r.amountUsd.toFixed(0),
+    '"'+FMAP[r.key].name+'"', FMAP[r.key].naics, r.ef, r.tco2e.toFixed(3)
+  ].join(','));
+  const total=rows.reduce((a,r)=>a+r.tco2e,0);
+  lines.push(['"TOTAL"','','','','','',total.toFixed(3)].join(','));
+  const csv=[head.join(','),...lines].join('\n');
+  const blob=new Blob([csv],{type:'text/csv'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download='scope3_screening.csv';a.click();URL.revokeObjectURL(a.href);
+}
+function copyRes(){
+  if(!rows.length)return;
+  const total=rows.reduce((a,r)=>a+r.tco2e,0);
+  const sorted=[...rows].sort((a,b)=>b.tco2e-a.tco2e);
+  let txt=`Scope 3 Category 1 — screening estimate (spend-based, EPA v1.4)\n`;
+  txt+=`Total: ${fmt(total)} tCO2e/yr across ${rows.length} spend lines\n\nHotspots:\n`;
+  sorted.slice(0,5).forEach((r,i)=>{txt+=`${i+1}. ${r.label} — ${fmt(r.tco2e)} tCO2e (${(r.tco2e/total*100).toFixed(0)}%)\n`;});
+  txt+=`\nScreening estimate only; not an audit-grade inventory.`;
+  navigator.clipboard.writeText(txt).then(()=>{
+    const b=document.getElementById('copyRes');const o=b.textContent;b.textContent='Copied ✓';setTimeout(()=>b.textContent=o,1400);
+  });
+}
+
+/* ---------- wire up ---------- */
+document.getElementById('run').addEventListener('click',compute);
+document.getElementById('sample').addEventListener('click',()=>{
+  document.getElementById('input').value=SAMPLE;compute();
+});
+document.getElementById('clear').addEventListener('click',()=>{
+  document.getElementById('input').value='';rows=[];renderMap();renderReadout();
+});
+document.getElementById('currency').addEventListener('change',e=>{
+  const r=e.target.options[e.target.selectedIndex].value;
+  document.getElementById('fx').value=r;
+});
+document.getElementById('exportCsv').addEventListener('click',exportCsv);
+document.getElementById('copyRes').addEventListener('click',copyRes);
+
+// prefill sample on load so the page is never a dead empty state
+document.getElementById('input').value=SAMPLE;
+compute();
+</script>
+</body>
+</html>
